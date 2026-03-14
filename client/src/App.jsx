@@ -27,6 +27,12 @@ export default function App() {
       .catch(() => {});
   }, []);
 
+  const finishStream = useCallback(() => {
+    streamingIdRef.current = null;
+    setStreaming(false);
+    setMessages(prev => prev.map(m => ({ ...m, streaming: false })));
+  }, []);
+
   const handleMessage = useCallback((msg) => {
     if (msg.error) {
       finishStream();
@@ -40,15 +46,9 @@ export default function App() {
       setTokenCount(n => n + 1);
     }
     if (msg.done) finishStream();
-  }, []);
+  }, [finishStream]);
 
   const { status, send } = useWebSocket(handleMessage);
-
-  function finishStream() {
-    streamingIdRef.current = null;
-    setStreaming(false);
-    setMessages(prev => prev.map(m => ({ ...m, streaming: false })));
-  }
 
   function handleSend() {
     const prompt = input.trim();

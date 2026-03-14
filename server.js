@@ -89,6 +89,9 @@ wss.on('connection', (ws) => {
         } catch { /* skip malformed lines */ }
       }
     }
+
+    // Guarantee the client always gets unblocked
+    ws.send(JSON.stringify({ done: true }));
   });
 
   ws.on('close', () => console.log('Client disconnected'));
