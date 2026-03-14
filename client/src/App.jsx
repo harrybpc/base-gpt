@@ -10,9 +10,17 @@ export default function App() {
   const [input, setInput] = useState('');
   const [streaming, setStreaming] = useState(false);
   const [tokenCount, setTokenCount] = useState(0);
+  const [model, setModel] = useState('—');
   const bottomRef = useRef(null);
   const textareaRef = useRef(null);
   const streamingIdRef = useRef(null);
+
+  useEffect(() => {
+    fetch(`http://${WS_HOST}:8080/model`)
+      .then(r => r.json())
+      .then(d => setModel(d.model))
+      .catch(() => {});
+  }, []);
 
   const finishStream = useCallback(() => {
     streamingIdRef.current = null;
@@ -82,6 +90,7 @@ export default function App() {
       <header style={s.header}>
         <span style={s.logo}>BASE GPT</span>
         <div style={s.headerMeta}>
+          <span style={{ color: 'var(--amber)', fontWeight: 500, fontSize: 11 }}>{model}</span>
           <StatusIndicator status={status} />
           <span style={{ color: 'var(--text-dim)', fontSize: 10 }}>{tokenCount} tokens</span>
         </div>

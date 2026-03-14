@@ -13,6 +13,12 @@ console.log(`Ollama: ${OLLAMA_URL}, default model: ${DEFAULT_MODEL}`);
 const server = http.createServer(async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
 
+  if (req.method === 'GET' && req.url === '/model') {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ model: DEFAULT_MODEL }));
+    return;
+  }
+
   if (req.method === 'GET' && req.url === '/models') {
     try {
       const r = await fetch(`${OLLAMA_URL}/api/tags`);
