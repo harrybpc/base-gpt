@@ -3,7 +3,7 @@ import { AnimatePresence, motion } from 'motion/react';
 import { Message } from './Message';
 import { useWebSocket } from './useWebSocket';
 
-const MODEL = 'llama3.2:1b';
+const MODEL = 'llama3.3:70b';
 
 export default function App() {
   const [messages, setMessages] = useState([]);
