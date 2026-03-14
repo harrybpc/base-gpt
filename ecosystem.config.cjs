@@ -6,7 +6,7 @@ module.exports = {
       env: {
         HOST: '192.168.17.12',
         PORT: '8080',
-        OLLAMA_MODEL: 'llama3.3:70b',
+        OLLAMA_MODEL: 'nemotron-3-super',
         OLLAMA_URL: 'http://localhost:11434',
       },
     },
