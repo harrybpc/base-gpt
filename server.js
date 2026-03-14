@@ -1,25 +1,50 @@
+import http from 'http';
 import { WebSocketServer } from 'ws';
 
 const PORT = process.env.PORT || 8080;
 const HOST = process.env.HOST || '0.0.0.0';
 const OLLAMA_URL = process.env.OLLAMA_URL || 'http://localhost:11434';
-const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'llama3.2';
-
-const wss = new WebSocketServer({ port: PORT, host: HOST });
+const DEFAULT_MODEL = process.env.OLLAMA_MODEL || 'llama3.2';
 
 console.log(`WebSocket server listening on ws://${HOST}:${PORT}`);
-console.log(`Ollama: ${OLLAMA_URL}, model: ${OLLAMA_MODEL}`);
+console.log(`Ollama: ${OLLAMA_URL}, default model: ${DEFAULT_MODEL}`);
+
+// HTTP server handles /models, WebSocket handles everything else
+const server = http.createServer(async (req, res) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+
+  if (req.method === 'GET' && req.url === '/models') {
+    try {
+      const r = await fetch(`${OLLAMA_URL}/api/tags`);
+      const data = await r.json();
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(data.models.map(m => m.name)));
+    } catch (err) {
+      res.writeHead(502, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: err.message }));
+    }
+    return;
+  }
+
+  res.writeHead(404);
+  res.end();
+});
+
+const wss = new WebSocketServer({ server });
+server.listen(PORT, HOST);
 
 wss.on('connection', (ws) => {
   console.log('Client connected');
 
   ws.on('message', async (data) => {
-    let prompt;
+    let prompt, model;
     try {
       const msg = JSON.parse(data.toString());
       prompt = typeof msg === 'string' ? msg : msg.prompt;
+      model  = msg.model || DEFAULT_MODEL;
     } catch {
       prompt = data.toString();
+      model  = DEFAULT_MODEL;
     }
 
     if (!prompt) {
@@ -27,14 +52,14 @@ wss.on('connection', (ws) => {
       return;
     }
 
-    console.log(`Prompt: ${prompt}`);
+    console.log(`[${model}] ${prompt}`);
 
     let res;
     try {
       res = await fetch(`${OLLAMA_URL}/api/generate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model: OLLAMA_MODEL, prompt }),
+        body: JSON.stringify({ model, prompt }),
       });
     } catch (err) {
       ws.send(JSON.stringify({ error: `Failed to reach Ollama: ${err.message}` }));
@@ -60,10 +85,8 @@ wss.on('connection', (ws) => {
         try {
           const json = JSON.parse(line);
           if (json.response) ws.send(JSON.stringify({ token: json.response }));
-          if (json.done) ws.send(JSON.stringify({ done: true }));
-        } catch {
-          // skip malformed lines
-        }
+          if (json.done)     ws.send(JSON.stringify({ done: true }));
+        } catch { /* skip malformed lines */ }
       }
     }
   });

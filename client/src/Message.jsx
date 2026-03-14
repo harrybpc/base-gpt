@@ -1,6 +1,7 @@
 import { motion } from 'motion/react';
 
-export function Message({ role, text, streaming }) {
+export function Message({ role, text, streaming, model }) {
+  const label = role === 'user' ? 'YOU' : role === 'error' ? 'ERR' : 'BASE';
   return (
     <motion.div
       className={`msg ${role}`}
@@ -10,9 +11,12 @@ export function Message({ role, text, streaming }) {
       style={styles.msg}
     >
       <div style={{ ...styles.role, color: role === 'user' ? 'var(--amber)' : role === 'error' ? 'var(--red)' : 'var(--green)' }}>
-        {role === 'user' ? 'YOU' : role === 'error' ? 'ERR' : 'BASE'}
+        {label}
       </div>
       <div style={{ ...styles.body, ...bodyVariant(role) }}>
+        {model && role === 'assistant' && (
+          <div style={styles.modelTag}>{model}</div>
+        )}
         {text}
         {streaming && <span style={styles.cursor} />}
       </div>
@@ -46,6 +50,13 @@ const styles = {
     borderLeft: '2px solid transparent',
     whiteSpace: 'pre-wrap',
     wordBreak: 'break-word',
+  },
+  modelTag: {
+    fontSize: 10,
+    color: 'var(--green-dim)',
+    letterSpacing: '0.08em',
+    marginBottom: 6,
+    fontWeight: 500,
   },
   cursor: {
     display: 'inline-block',
