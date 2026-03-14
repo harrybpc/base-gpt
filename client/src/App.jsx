@@ -15,6 +15,11 @@ export default function App() {
   const textareaRef = useRef(null);
   const streamingIdRef = useRef(null);
 
+  // If WS drops mid-stream, unblock the UI
+  useEffect(() => {
+    if (status === 'disconnected' && streaming) finishStream();
+  }, [status, streaming, finishStream]);
+
   useEffect(() => {
     fetch(`http://${WS_HOST}:8080/model`)
       .then(r => r.json())
@@ -51,13 +56,16 @@ export default function App() {
 
     const assistantId = Date.now() + 1;
     streamingIdRef.current = assistantId;
+
+    const sent = send({ prompt });
+    if (!sent) return; // don't lock up if send failed
+
     setStreaming(true);
     setMessages(prev => [
       ...prev,
       { id: Date.now(),  role: 'user',     text: prompt, streaming: false },
       { id: assistantId, role: 'assistant', text: '',     streaming: true  },
     ]);
-    send({ prompt });
     setInput('');
   }
 
