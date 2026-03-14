@@ -122,7 +122,7 @@ export default function App() {
       </div>
 
       <footer style={s.footer}>
-        <span style={{ color: 'var(--text-dim)', fontSize: 10 }}>ws://localhost:8080</span>
+        <span style={{ color: 'var(--text-dim)', fontSize: 10 }}>ws://{window.location.hostname}:8080</span>
         <button style={s.clearBtn} onClick={handleClear}>[ clear ]</button>
       </footer>
 
