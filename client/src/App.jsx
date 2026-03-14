@@ -10,22 +10,9 @@ export default function App() {
   const [input, setInput] = useState('');
   const [streaming, setStreaming] = useState(false);
   const [tokenCount, setTokenCount] = useState(0);
-  const [models, setModels] = useState([]);
-  const [selectedModel, setSelectedModel] = useState(null);
   const bottomRef = useRef(null);
   const textareaRef = useRef(null);
   const streamingIdRef = useRef(null);
-
-  // Fetch available models
-  useEffect(() => {
-    fetch(`http://${WS_HOST}:8080/models`)
-      .then(r => r.json())
-      .then(list => {
-        setModels(list);
-        setSelectedModel(list[0] ?? null);
-      })
-      .catch(() => {});
-  }, []);
 
   const finishStream = useCallback(() => {
     streamingIdRef.current = null;
@@ -52,17 +39,17 @@ export default function App() {
 
   function handleSend() {
     const prompt = input.trim();
-    if (!prompt || status !== 'connected' || streaming || !selectedModel) return;
+    if (!prompt || status !== 'connected' || streaming) return;
 
     const assistantId = Date.now() + 1;
     streamingIdRef.current = assistantId;
     setStreaming(true);
     setMessages(prev => [
       ...prev,
-      { id: Date.now(),   role: 'user',      text: prompt, streaming: false },
-      { id: assistantId,  role: 'assistant',  text: '',     streaming: true, model: selectedModel },
+      { id: Date.now(),  role: 'user',     text: prompt, streaming: false },
+      { id: assistantId, role: 'assistant', text: '',     streaming: true  },
     ]);
-    send({ prompt, model: selectedModel });
+    send({ prompt });
     setInput('');
   }
 
@@ -88,14 +75,13 @@ export default function App() {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  const canSend = status === 'connected' && !streaming && input.trim().length > 0 && !!selectedModel;
+  const canSend = status === 'connected' && !streaming && input.trim().length > 0;
 
   return (
     <div style={s.app}>
       <header style={s.header}>
         <span style={s.logo}>BASE GPT</span>
         <div style={s.headerMeta}>
-          <ModelSelector models={models} selected={selectedModel} onChange={setSelectedModel} disabled={streaming} />
           <StatusIndicator status={status} />
           <span style={{ color: 'var(--text-dim)', fontSize: 10 }}>{tokenCount} tokens</span>
         </div>
@@ -109,7 +95,7 @@ export default function App() {
               <div style={{ fontSize: 11, letterSpacing: '0.1em', color: 'var(--text-dim)' }}>send a prompt to begin</div>
             </motion.div>
           ) : (
-            messages.map(m => <Message key={m.id} role={m.role} text={m.text} streaming={m.streaming} model={m.model} />)
+            messages.map(m => <Message key={m.id} role={m.role} text={m.text} streaming={m.streaming} />)
           )}
         </AnimatePresence>
         <div ref={bottomRef} />
@@ -145,39 +131,10 @@ export default function App() {
         @keyframes blink { 50% { opacity:0; } }
         textarea { outline: none !important; }
         textarea::placeholder { color: var(--text-dim); }
-        .model-select:focus { outline: none; }
       `}</style>
     </div>
   );
 }
-
-function ModelSelector({ models, selected, onChange, disabled }) {
-  if (!models.length) return <span style={{ color: 'var(--text-dim)', fontSize: 10 }}>loading models…</span>;
-  return (
-    <div style={ms.wrap}>
-      <span style={ms.label}>MODEL</span>
-      <select
-        className="model-select"
-        value={selected ?? ''}
-        onChange={e => onChange(e.target.value)}
-        disabled={disabled}
-        style={{ ...ms.select, opacity: disabled ? 0.4 : 1 }}
-      >
-        {models.map(m => <option key={m} value={m}>{m}</option>)}
-      </select>
-    </div>
-  );
-}
-
-const ms = {
-  wrap:  { display: 'flex', alignItems: 'center', gap: 8 },
-  label: { fontSize: 10, letterSpacing: '0.1em', color: 'var(--text-dim)' },
-  select: {
-    background: 'var(--bg-input)', border: '1px solid var(--border-lit)',
-    color: 'var(--amber)', fontFamily: "'Fira Code', monospace", fontSize: 11,
-    fontWeight: 500, padding: '3px 8px', borderRadius: 2, cursor: 'pointer',
-  },
-};
 
 function StatusIndicator({ status }) {
   const color = status === 'connected' ? 'var(--green)' : status === 'connecting' ? 'var(--amber)' : 'var(--red)';
