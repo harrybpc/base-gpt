@@ -1,12 +1,13 @@
 import { WebSocketServer } from 'ws';
 
 const PORT = process.env.PORT || 8080;
+const HOST = process.env.HOST || '0.0.0.0';
 const OLLAMA_URL = process.env.OLLAMA_URL || 'http://localhost:11434';
 const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'llama3.2';
 
-const wss = new WebSocketServer({ port: PORT });
+const wss = new WebSocketServer({ port: PORT, host: HOST });
 
-console.log(`WebSocket server listening on ws://localhost:${PORT}`);
+console.log(`WebSocket server listening on ws://${HOST}:${PORT}`);
 console.log(`Ollama: ${OLLAMA_URL}, model: ${OLLAMA_MODEL}`);
 
 wss.on('connection', (ws) => {
