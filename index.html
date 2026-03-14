@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BASE GPT</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@300;400;500;600&family=Syne:wght@700;800&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:         #070809;
+      --bg-panel:   #0c0e10;
+      --bg-input:   #111416;
+      --green:      #52e87a;
+      --green-glow: rgba(82, 232, 122, 0.15);
+      --green-dim:  #2a5c38;
+      --amber:      #f5c842;
+      --amber-dim:  #5c4a10;
+      --red:        #ff5555;
+      --text:       #8fb89a;
+      --text-dim:   #3d5444;
+      --border:     #1a2220;
+      --border-lit: #2a3d30;
+    }
+
+    html, body {
+      height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Fira Code', monospace;
+      font-size: 13px;
+      line-height: 1.6;
+      overflow: hidden;
+    }
+
+    /* CRT scanlines */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background: repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 2px,
+        rgba(0,0,0,0.08) 2px,
+        rgba(0,0,0,0.08) 4px
+      );
+      pointer-events: none;
+      z-index: 100;
+    }
+
+    /* Vignette */
+    body::after {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background: radial-gradient(ellipse at center, transparent 60%, rgba(0,0,0,0.6) 100%);
+      pointer-events: none;
+      z-index: 99;
+    }
+
+    #app {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      max-width: 900px;
+      margin: 0 auto;
+      border-left: 1px solid var(--border);
+      border-right: 1px solid var(--border);
+    }
+
+    /* ── HEADER ── */
+    #header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 24px;
+      border-bottom: 1px solid var(--border);
+      background: var(--bg-panel);
+      flex-shrink: 0;
+    }
+
+    #logo {
+      font-family: 'Syne', sans-serif;
+      font-size: 18px;
+      font-weight: 800;
+      color: var(--green);
+      letter-spacing: 0.15em;
+      text-shadow: 0 0 20px var(--green-glow);
+    }
+
+    #header-meta {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      font-size: 11px;
+      color: var(--text-dim);
+      letter-spacing: 0.08em;
+    }
+
+    #model-name {
+      color: var(--amber);
+      font-weight: 500;
+    }
+
+    #status {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    #status-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--red);
+      transition: background 0.3s;
+    }
+
+    #status-dot.connected {
+      background: var(--green);
+      box-shadow: 0 0 8px var(--green);
+      animation: pulse 2s ease-in-out infinite;
+    }
+
+    #status-dot.connecting {
+      background: var(--amber);
+      animation: blink 0.5s step-end infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
+    @keyframes blink {
+      50% { opacity: 0; }
+    }
+
+    #token-count {
+      font-size: 10px;
+      color: var(--text-dim);
+    }
+
+    /* ── MESSAGES ── */
+    #messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 28px;
+      scroll-behavior: smooth;
+    }
+
+    #messages::-webkit-scrollbar { width: 4px; }
+    #messages::-webkit-scrollbar-track { background: transparent; }
+    #messages::-webkit-scrollbar-thumb { background: var(--border-lit); border-radius: 2px; }
+
+    .msg {
+      display: grid;
+      grid-template-columns: 60px 1fr;
+      gap: 0 16px;
+      animation: fadeIn 0.2s ease-out;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(4px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .msg-role {
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.12em;
+      padding-top: 2px;
+      text-align: right;
+    }
+
+    .msg.user .msg-role  { color: var(--amber); }
+    .msg.assistant .msg-role { color: var(--green); }
+    .msg.error .msg-role { color: var(--red); }
+
+    .msg-body {
+      padding: 12px 16px;
+      border-radius: 2px;
+      border-left: 2px solid transparent;
+      position: relative;
+    }
+
+    .msg.user .msg-body {
+      background: rgba(245, 200, 66, 0.05);
+      border-color: var(--amber);
+      color: #d4b96e;
+    }
+
+    .msg.assistant .msg-body {
+      background: rgba(82, 232, 122, 0.04);
+      border-color: var(--green-dim);
+      color: var(--text);
+    }
+
+    .msg.error .msg-body {
+      background: rgba(255, 85, 85, 0.06);
+      border-color: var(--red);
+      color: #ff8888;
+    }
+
+    /* streaming cursor */
+    .cursor {
+      display: inline-block;
+      width: 7px;
+      height: 13px;
+      background: var(--green);
+      vertical-align: text-bottom;
+      margin-left: 2px;
+      animation: blink 0.8s step-end infinite;
+    }
+
+    /* ── DIVIDER ── */
+    #divider {
+      height: 1px;
+      background: linear-gradient(to right, transparent, var(--border-lit), transparent);
+      flex-shrink: 0;
+    }
+
+    /* ── INPUT BAR ── */
+    #input-bar {
+      padding: 16px 24px;
+      background: var(--bg-panel);
+      border-top: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+
+    #input-row {
+      display: flex;
+      align-items: flex-end;
+      gap: 12px;
+      background: var(--bg-input);
+      border: 1px solid var(--border-lit);
+      border-radius: 3px;
+      padding: 10px 14px;
+      transition: border-color 0.2s;
+    }
+
+    #input-row:focus-within {
+      border-color: var(--green-dim);
+      box-shadow: 0 0 0 3px var(--green-glow);
+    }
+
+    #prompt-prefix {
+      color: var(--green);
+      font-size: 13px;
+      font-weight: 600;
+      flex-shrink: 0;
+      padding-bottom: 1px;
+      user-select: none;
+    }
+
+    #prompt-input {
+      flex: 1;
+      background: transparent;
+      border: none;
+      outline: none;
+      color: #e0ece3;
+      font-family: 'Fira Code', monospace;
+      font-size: 13px;
+      resize: none;
+      min-height: 20px;
+      max-height: 120px;
+      line-height: 1.6;
+      caret-color: var(--green);
+    }
+
+    #prompt-input::placeholder { color: var(--text-dim); }
+
+    #send-btn {
+      flex-shrink: 0;
+      background: transparent;
+      border: 1px solid var(--green-dim);
+      color: var(--green);
+      font-family: 'Fira Code', monospace;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      padding: 5px 12px;
+      border-radius: 2px;
+      cursor: pointer;
+      transition: all 0.15s;
+      white-space: nowrap;
+    }
+
+    #send-btn:hover:not(:disabled) {
+      background: var(--green-glow);
+      border-color: var(--green);
+      box-shadow: 0 0 12px var(--green-glow);
+    }
+
+    #send-btn:disabled {
+      opacity: 0.3;
+      cursor: not-allowed;
+    }
+
+    /* ── FOOTER ── */
+    #footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 6px 24px 10px;
+      background: var(--bg-panel);
+    }
+
+    #footer-left {
+      font-size: 10px;
+      color: var(--text-dim);
+      letter-spacing: 0.06em;
+    }
+
+    #clear-btn {
+      background: none;
+      border: none;
+      font-family: 'Fira Code', monospace;
+      font-size: 10px;
+      color: var(--text-dim);
+      cursor: pointer;
+      letter-spacing: 0.08em;
+      transition: color 0.2s;
+    }
+
+    #clear-btn:hover { color: var(--red); }
+
+    /* ── EMPTY STATE ── */
+    #empty {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      flex: 1;
+      color: var(--text-dim);
+      text-align: center;
+    }
+
+    #empty-logo {
+      font-family: 'Syne', sans-serif;
+      font-size: 48px;
+      font-weight: 800;
+      color: var(--border-lit);
+      letter-spacing: 0.2em;
+      text-shadow: 0 0 40px rgba(82, 232, 122, 0.05);
+    }
+
+    #empty-sub {
+      font-size: 11px;
+      letter-spacing: 0.1em;
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <div id="header">
+      <div id="logo">BASE GPT</div>
+      <div id="header-meta">
+        <span id="model-name">—</span>
+        <div id="status">
+          <div id="status-dot" class="connecting"></div>
+          <span id="status-label">CONNECTING</span>
+        </div>
+        <span id="token-count">0 tokens</span>
+      </div>
+    </div>
+
+    <div id="messages">
+      <div id="empty">
+        <div id="empty-logo">BASE</div>
+        <div id="empty-sub">send a prompt to begin</div>
+      </div>
+    </div>
+
+    <div id="divider"></div>
+
+    <div id="input-bar">
+      <div id="input-row">
+        <span id="prompt-prefix">&gt;</span>
+        <textarea
+          id="prompt-input"
+          placeholder="enter prompt..."
+          rows="1"
+          autofocus
+        ></textarea>
+        <button id="send-btn">SEND ↵</button>
+      </div>
+    </div>
+
+    <div id="footer">
+      <span id="footer-left">ws://localhost:8080</span>
+      <button id="clear-btn">[ clear ]</button>
+    </div>
+  </div>
+
+  <script>
+    const WS_URL    = 'ws://localhost:8080';
+    const MODEL     = 'llama3.2:1b';
+
+    const $messages   = document.getElementById('messages');
+    const $input      = document.getElementById('prompt-input');
+    const $sendBtn    = document.getElementById('send-btn');
+    const $statusDot  = document.getElementById('status-dot');
+    const $statusLbl  = document.getElementById('status-label');
+    const $modelName  = document.getElementById('model-name');
+    const $tokenCount = document.getElementById('token-count');
+    const $clearBtn   = document.getElementById('clear-btn');
+    const $empty      = document.getElementById('empty');
+
+    let ws = null;
+    let totalTokens = 0;
+    let streaming = false;
+    let currentAssistantBody = null;
+    let currentCursor = null;
+    let reconnectTimer = null;
+
+    $modelName.textContent = MODEL;
+
+    // ── WebSocket ──────────────────────────────────────────────
+    function connect() {
+      setStatus('connecting');
+      ws = new WebSocket(WS_URL);
+
+      ws.onopen = () => {
+        setStatus('connected');
+        clearTimeout(reconnectTimer);
+      };
+
+      ws.onclose = () => {
+        setStatus('disconnected');
+        reconnectTimer = setTimeout(connect, 3000);
+      };
+
+      ws.onerror = () => ws.close();
+
+      ws.onmessage = (e) => {
+        const msg = JSON.parse(e.data);
+
+        if (msg.error) {
+          finishStream();
+          appendMessage('error', msg.error);
+          return;
+        }
+
+        if (msg.token) {
+          if (!currentAssistantBody) startAssistantStream();
+          appendToken(msg.token);
+          totalTokens++;
+          $tokenCount.textContent = `${totalTokens} tokens`;
+        }
+
+        if (msg.done) finishStream();
+      };
+    }
+
+    function setStatus(state) {
+      $statusDot.className = state === 'connected' ? 'connected'
+                           : state === 'connecting' ? 'connecting' : '';
+      $statusLbl.textContent = state.toUpperCase();
+      $sendBtn.disabled = state !== 'connected' || streaming;
+    }
+
+    // ── Messages ───────────────────────────────────────────────
+    function appendMessage(role, text) {
+      removeEmpty();
+      const div = document.createElement('div');
+      div.className = `msg ${role}`;
+      div.innerHTML = `
+        <div class="msg-role">${role.toUpperCase()}</div>
+        <div class="msg-body">${escapeHtml(text)}</div>
+      `;
+      $messages.appendChild(div);
+      scrollBottom();
+      return div.querySelector('.msg-body');
+    }
+
+    function startAssistantStream() {
+      removeEmpty();
+      const div = document.createElement('div');
+      div.className = 'msg assistant';
+      div.innerHTML = `<div class="msg-role">BASE</div><div class="msg-body"></div>`;
+      $messages.appendChild(div);
+      currentAssistantBody = div.querySelector('.msg-body');
+      currentCursor = document.createElement('span');
+      currentCursor.className = 'cursor';
+      currentAssistantBody.appendChild(currentCursor);
+      scrollBottom();
+    }
+
+    function appendToken(token) {
+      if (!currentAssistantBody) return;
+      const text = document.createTextNode(token);
+      currentAssistantBody.insertBefore(text, currentCursor);
+      scrollBottom();
+    }
+
+    function finishStream() {
+      streaming = false;
+      if (currentCursor) { currentCursor.remove(); currentCursor = null; }
+      currentAssistantBody = null;
+      $sendBtn.disabled = ws?.readyState !== WebSocket.OPEN;
+      $input.focus();
+    }
+
+    // ── Send ───────────────────────────────────────────────────
+    function send() {
+      const prompt = $input.value.trim();
+      if (!prompt || !ws || ws.readyState !== WebSocket.OPEN || streaming) return;
+
+      streaming = true;
+      $sendBtn.disabled = true;
+      appendMessage('user', prompt);
+      ws.send(JSON.stringify({ prompt }));
+      $input.value = '';
+      $input.style.height = 'auto';
+    }
+
+    $sendBtn.addEventListener('click', send);
+
+    $input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
+    });
+
+    $input.addEventListener('input', () => {
+      $input.style.height = 'auto';
+      $input.style.height = $input.scrollHeight + 'px';
+    });
+
+    $clearBtn.addEventListener('click', () => {
+      $messages.innerHTML = '';
+      $messages.appendChild($empty);
+      $empty.style.display = 'flex';
+      totalTokens = 0;
+      $tokenCount.textContent = '0 tokens';
+      streaming = false;
+      currentAssistantBody = null;
+      currentCursor = null;
+    });
+
+    // ── Helpers ────────────────────────────────────────────────
+    function scrollBottom() {
+      $messages.scrollTop = $messages.scrollHeight;
+    }
+
+    function removeEmpty() {
+      if ($empty.parentNode) $empty.remove();
+    }
+
+    function escapeHtml(str) {
+      return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+
+    connect();
+  </script>
+</body>
+</html>
